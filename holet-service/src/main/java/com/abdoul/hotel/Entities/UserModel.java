@@ -53,4 +53,7 @@ public class UserModel {
     public void onUpdate (){
         this.updatedAt = ZonedDateTime.now(ZoneId.of("UTC"));
     }
+
+    @OneToOne(mappedBy = "user")
+    private WalletModel userWallet;
 }
