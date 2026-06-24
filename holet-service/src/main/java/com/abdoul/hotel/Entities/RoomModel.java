@@ -1,39 +1,36 @@
 package com.abdoul.hotel.Entities;
 
-import com.abdoul.hotel.Config.UserType;
+import com.abdoul.hotel.Config.RoomType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 @Entity
-@Table(name = "users")
+@Table(name = "rooms")
 @Getter
 @Setter
 @NoArgsConstructor
-public class UserModel {
+public class RoomModel {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false)
-    private String name;
+    private String roomNumber;
 
-    private String email;
-
-    private String phone;
-
+    @Enumerated(value = EnumType.STRING)
     @Column(nullable = false)
-    private LocalDate birthDate;
+    private RoomType roomType;
 
-    @Column(nullable = false)
-    private String password;
+    @Column (nullable = false, precision = 7, scale = 2)
+    private BigDecimal nightPrice;
 
-    private boolean faEnabled;
+    private boolean available = true;
 
     @Column(columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private ZonedDateTime createdAt;
@@ -41,24 +38,17 @@ public class UserModel {
     @Column(columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private ZonedDateTime updatedAt;
 
-    @Enumerated(value = EnumType.STRING)
-    private UserType userType = UserType.User;
-
-    @Column(name = "is_deleted")
-    private boolean deleted;
-
     @PrePersist
     public void onCreate (){
-        this.faEnabled = false;
-        this.deleted = false;
         this.createdAt = ZonedDateTime.now(ZoneId.of("UTC"));
     }
 
     @PreUpdate
-    public void onUpdate (){
+    public void onUpdate(){
         this.updatedAt = ZonedDateTime.now(ZoneId.of("UTC"));
     }
 
-    @OneToOne(mappedBy = "user")
-    private WalletModel userWallet;
+    @ManyToOne
+    @JoinColumn(name = "room_hotel")
+    private HotelModel hotel;
 }
