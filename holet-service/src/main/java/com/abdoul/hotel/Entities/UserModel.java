@@ -9,6 +9,7 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
@@ -61,4 +62,7 @@ public class UserModel {
 
     @OneToOne(mappedBy = "user")
     private WalletModel userWallet;
+
+    @OneToMany(mappedBy = "user")
+    private List<KycModel> kycs;
 }
