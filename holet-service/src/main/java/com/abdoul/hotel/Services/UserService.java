@@ -10,6 +10,10 @@ import com.abdoul.hotel.Exceptions.ConflictException;
 import com.abdoul.hotel.Repositories.KycRepository;
 import com.abdoul.hotel.Repositories.UserRepository;
 import com.abdoul.hotel.Repositories.WalletRepository;
+import com.abdoul.hotel.Utils.RedisUtil;
+import com.abdoul.hotel.Utils.ResendUtil;
+import com.abdoul.hotel.Utils.TwilioUtil;
+import com.abdoul.hotel.Utils.TwoFactorUtil;
 import org.springframework.security.crypto.password4j.Argon2Password4jPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,12 +29,20 @@ public class UserService {
     private final UserRepository userRepository;
     private final WalletRepository walletRepository;
     private final KycRepository kycRepository;
+    private final TwilioUtil twilioUtil;
+    private final TwoFactorUtil twoFactorUtil;
+    private final RedisUtil redisUtil;
+    private final ResendUtil resend;
 
-    public UserService (Argon2Password4jPasswordEncoder encoder, UserRepository userRepository, WalletRepository walletRepository, KycRepository kycRepository){
+    public UserService (Argon2Password4jPasswordEncoder encoder, UserRepository userRepository, WalletRepository walletRepository, KycRepository kycRepository, TwilioUtil twilioUtil, TwoFactorUtil twoFactorUtil, RedisUtil redisUtil, ResendUtil resend){
         this.encoder = encoder;
         this.userRepository = userRepository;
         this.walletRepository = walletRepository;
         this.kycRepository = kycRepository;
+        this.twilioUtil = twilioUtil;
+        this.twoFactorUtil = twoFactorUtil;
+        this.redisUtil = redisUtil;
+        this.resend = resend;
     }
 
     @Transactional
@@ -78,9 +90,24 @@ public class UserService {
 
         kycRepository.saveAll(kycs);
 
+        String smsCode = twoFactorUtil.createCode();
+        String emailCode = twoFactorUtil.createCode();
+
+        if (!noPhone) {
+            redisUtil.saveCode(smsCode, String.valueOf(newUser.getId()), "Sign-up-phone-verification");
+            twilioUtil.sendWelcomeSmsWithPhoneVerification(data.getPhone(), data.getName(), smsCode);
+        }
+
+        if (!noEmail) {
+            redisUtil.saveCode(emailCode, String.valueOf(newUser.getId()), "Sign-up-email-verification");
+            resend.sendWelcomeEmailWithEmailVerification(newUser.getName(), emailCode);
+        }
+
         Map<String, String> response = new LinkedHashMap<>();
         response.put("notice", "Welcome " + data.getName() + ", your account has been successfully created");
+        response.put("message", "A notification will be sent to you soon to verify your phone/email");
 
         return response;
     }
+
 }
