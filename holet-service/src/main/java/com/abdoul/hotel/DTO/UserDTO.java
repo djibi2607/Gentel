@@ -1,10 +1,7 @@
 package com.abdoul.hotel.DTO;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Past;
-import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.validator.constraints.Length;
@@ -34,5 +31,12 @@ public class UserDTO {
         @Past(message = "Invalid birth date and format should be MM-dd-yyyy")
         @JsonFormat(pattern = "MM-dd-yyyy")
         private LocalDate birthDate;
+    }
+
+    @Getter
+    @Setter
+    public static class Verification{
+        private String emailCode;
+        private String smsCode;
     }
 }
