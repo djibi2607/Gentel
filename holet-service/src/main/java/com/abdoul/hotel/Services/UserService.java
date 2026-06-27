@@ -7,13 +7,11 @@ import com.abdoul.hotel.Entities.UserModel;
 import com.abdoul.hotel.Entities.WalletModel;
 import com.abdoul.hotel.Exceptions.BadRequestException;
 import com.abdoul.hotel.Exceptions.ConflictException;
+import com.abdoul.hotel.Exceptions.NotFoundException;
 import com.abdoul.hotel.Repositories.KycRepository;
 import com.abdoul.hotel.Repositories.UserRepository;
 import com.abdoul.hotel.Repositories.WalletRepository;
-import com.abdoul.hotel.Utils.RedisUtil;
-import com.abdoul.hotel.Utils.ResendUtil;
-import com.abdoul.hotel.Utils.TwilioUtil;
-import com.abdoul.hotel.Utils.TwoFactorUtil;
+import com.abdoul.hotel.Utils.*;
 import org.springframework.security.crypto.password4j.Argon2Password4jPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,8 +31,10 @@ public class UserService {
     private final TwoFactorUtil twoFactorUtil;
     private final RedisUtil redisUtil;
     private final ResendUtil resend;
+    private final JwtUtil jwtUtil;
 
-    public UserService (Argon2Password4jPasswordEncoder encoder, UserRepository userRepository, WalletRepository walletRepository, KycRepository kycRepository, TwilioUtil twilioUtil, TwoFactorUtil twoFactorUtil, RedisUtil redisUtil, ResendUtil resend){
+    public UserService (Argon2Password4jPasswordEncoder encoder, UserRepository userRepository, WalletRepository walletRepository, KycRepository kycRepository, TwilioUtil twilioUtil, TwoFactorUtil twoFactorUtil, RedisUtil redisUtil, ResendUtil resend
+    , JwtUtil jwtUtil){
         this.encoder = encoder;
         this.userRepository = userRepository;
         this.walletRepository = walletRepository;
@@ -43,6 +43,7 @@ public class UserService {
         this.twoFactorUtil = twoFactorUtil;
         this.redisUtil = redisUtil;
         this.resend = resend;
+        this.jwtUtil = jwtUtil;
     }
 
     @Transactional
@@ -103,11 +104,96 @@ public class UserService {
             resend.sendWelcomeEmailWithEmailVerification(newUser.getName(), emailCode);
         }
 
+        String token = jwtUtil.generateAccessToken(String.valueOf(newUser.getId()));
+
         Map<String, String> response = new LinkedHashMap<>();
         response.put("notice", "Welcome " + data.getName() + ", your account has been successfully created");
         response.put("message", "A notification will be sent to you soon to verify your phone/email");
+        response.put("temporary-token", token);
+        response.put("token-type", "Bearer ");
 
         return response;
     }
+
+    @Transactional
+    public Map<String, String> verifyEmailOrPhone (UserDTO.Verification data, UserModel currentUser){
+        if (data.getEmailCode() == null && data.getSmsCode() == null){
+            throw new BadRequestException("You must enter at least one code");
+        }
+
+        if (currentUser.isEmailVerified() && currentUser.isPhoneVerified()){
+            throw new BadRequestException("Your credentials have already been verified");
+        }
+
+        Map<String, String> response = new LinkedHashMap<>();
+
+        if (currentUser.getEmail() != null && currentUser.getPhone() != null){
+
+            String emailCode = redisUtil.getCode(String.valueOf(currentUser.getId()), "Sign-up-email-verification");
+
+            if (emailCode == null){
+                throw new BadRequestException("Code expired");
+            }
+
+            if (!emailCode.equals(data.getEmailCode())){
+                throw new BadRequestException("Incorrect code");
+            }
+            else {
+                currentUser.setEmailVerified(true);
+                response.put("notice", "Your email has been verified");
+            }
+
+            String smsCode = redisUtil.getCode(String.valueOf(currentUser.getId()), "Sign-up-phone-verification");
+
+            if (smsCode == null){
+                throw new BadRequestException("Code expired");
+            }
+
+            if (!smsCode.equals(data.getSmsCode())){
+                throw new BadRequestException("Incorrect code");
+            }
+            else {
+                currentUser.setPhoneVerified(true);
+                response.put("message", "Your phone has been verified");
+            }
+
+        }
+
+        if (currentUser.getPhone() == null){
+            String emailCode = redisUtil.getCode(String.valueOf(currentUser.getId()), "Sign-up-email-verification");
+
+            if (emailCode == null){
+                throw new BadRequestException("Code expired");
+            }
+
+            if (!emailCode.equals(data.getEmailCode())){
+                throw new BadRequestException("Incorrect code");
+            }
+            else {
+                currentUser.setEmailVerified(true);
+                response.put("notice", "Your email has been verified");
+            }
+        }
+        if (currentUser.getEmail() == null) {
+            String smsCode = redisUtil.getCode(String.valueOf(currentUser.getId()), "Sign-up-phone-verification");
+
+            if (smsCode == null){
+                throw new BadRequestException("Code expired");
+            }
+
+            if (!smsCode.equals(data.getSmsCode())){
+                throw new BadRequestException("Incorrect code");
+            }
+            else {
+                currentUser.setPhoneVerified(true);
+                response.put("notice", "Your phone has been verified");
+            }
+        }
+
+        userRepository.save(currentUser);
+
+        return response;
+    }
+
 
 }
