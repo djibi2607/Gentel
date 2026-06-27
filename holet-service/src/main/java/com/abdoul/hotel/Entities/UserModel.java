@@ -65,4 +65,8 @@ public class UserModel {
 
     @OneToMany(mappedBy = "user")
     private List<KycModel> kycs;
+
+    private boolean phoneVerified = false;
+
+    private boolean emailVerified = false;
 }
