@@ -1,7 +1,9 @@
 package com.abdoul.hotel.Controller;
 
 import com.abdoul.hotel.DTO.UserDTO;
+import com.abdoul.hotel.Entities.UserModel;
 import com.abdoul.hotel.Services.UserService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,5 +25,12 @@ public class UserController {
     @PostMapping ("/sign-up")
     public ResponseEntity<Map<String, String>> createAccount (@Valid @RequestBody UserDTO.SignUp data) {
         return ResponseEntity.ok().body(userService.createAccount(data));
+    }
+
+    @PostMapping("/verify")
+    public ResponseEntity<Map<String, String>> verifyEmailOrPhone (@RequestBody UserDTO.Verification data, HttpServletRequest request){
+        UserModel currentUser = (UserModel) request.getAttribute("currentUser");
+
+        return ResponseEntity.ok().body(userService.verifyEmailOrPhone(data, currentUser));
     }
 }
