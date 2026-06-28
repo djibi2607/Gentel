@@ -33,4 +33,9 @@ public class UserController {
 
         return ResponseEntity.ok().body(userService.verifyEmailOrPhone(data, currentUser));
     }
+
+    @PostMapping("login")
+    public ResponseEntity<Map<String, String>> login (@Valid @RequestBody UserDTO.Login data){
+        return ResponseEntity.ok().body(userService.logIn(data));
+    }
 }
