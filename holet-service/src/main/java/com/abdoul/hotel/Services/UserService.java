@@ -6,14 +6,12 @@ import com.abdoul.hotel.DTO.UserDTO;
 import com.abdoul.hotel.Entities.KycModel;
 import com.abdoul.hotel.Entities.UserModel;
 import com.abdoul.hotel.Entities.WalletModel;
-import com.abdoul.hotel.Exceptions.BadRequestException;
-import com.abdoul.hotel.Exceptions.ConflictException;
-import com.abdoul.hotel.Exceptions.ForbiddenException;
-import com.abdoul.hotel.Exceptions.NotFoundException;
+import com.abdoul.hotel.Exceptions.*;
 import com.abdoul.hotel.Repositories.KycRepository;
 import com.abdoul.hotel.Repositories.UserRepository;
 import com.abdoul.hotel.Repositories.WalletRepository;
 import com.abdoul.hotel.Utils.*;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password4j.Argon2Password4jPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,9 +35,10 @@ public class UserService {
     private final RedisUtil redisUtil;
     private final ResendUtil resend;
     private final JwtUtil jwtUtil;
+    private final RedisTemplate<String, String> redisTemplate;
 
     public UserService (Argon2Password4jPasswordEncoder encoder, UserRepository userRepository, WalletRepository walletRepository, KycRepository kycRepository, TwilioUtil twilioUtil, TwoFactorUtil twoFactorUtil, RedisUtil redisUtil, ResendUtil resend
-    , JwtUtil jwtUtil){
+    , JwtUtil jwtUtil, RedisTemplate<String, String> redisTemplate){
         this.encoder = encoder;
         this.userRepository = userRepository;
         this.walletRepository = walletRepository;
@@ -49,6 +48,7 @@ public class UserService {
         this.redisUtil = redisUtil;
         this.resend = resend;
         this.jwtUtil = jwtUtil;
+        this.redisTemplate = redisTemplate;
     }
 
     @Transactional
@@ -269,6 +269,43 @@ public class UserService {
         response.put("access token", accessToken);
         response.put("refresh token", refresh);
         response.put("token type", "Bearer ");
+
+        return response;
+    }
+
+
+    public Map<String, String> loginWith2fa (UserDTO.LoginWith2fa data){
+        String userId = redisUtil.getIdFromToken("Temporary-Token", data.getToken());
+
+        if (userId == null){
+            throw new UnauthorizedException("Invalid token");
+        }
+
+        String storedCode = redisUtil.getCode(userId, "Login-Two-Factor-Code");
+
+        if (storedCode == null) {
+            throw new BadRequestException("Code expired");
+        }
+
+        if (!storedCode.equals(data.getCode())){
+            throw new BadRequestException("Invalid code");
+        }
+
+        Map<String, String> response = new LinkedHashMap<>();
+
+        String accessToken = jwtUtil.generateAccessToken(userId);
+
+        String refresh = jwtUtil.createRefresh();
+
+        redisUtil.saveToken("Refresh-Token", refresh, userId, Duration.ofHours(2));
+
+        response.put("notice", "Login successful");
+        response.put("access token", accessToken);
+        response.put("refresh token", refresh);
+        response.put("token type", "Bearer ");
+
+        redisTemplate.delete ("Temporary-Token" + data.getToken());
+        redisTemplate.delete("Login-Two-Factor-Code" + userId);
 
         return response;
     }

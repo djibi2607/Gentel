@@ -48,4 +48,13 @@ public class UserDTO {
         @NotBlank
         private String password;
     }
+
+    @Getter
+    @Setter
+    public static class LoginWith2fa{
+        @NotBlank
+        private String token;
+        @NotBlank
+        private String code;
+    }
 }
