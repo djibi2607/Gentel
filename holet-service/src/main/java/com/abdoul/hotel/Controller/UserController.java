@@ -38,4 +38,9 @@ public class UserController {
     public ResponseEntity<Map<String, String>> login (@Valid @RequestBody UserDTO.Login data){
         return ResponseEntity.ok().body(userService.logIn(data));
     }
+
+    @PostMapping("/login-with-2-fa")
+    public ResponseEntity<Map<String, String>> loginWith2fa (@Valid @RequestBody UserDTO.LoginWith2fa data){
+        return ResponseEntity.ok().body(userService.loginWith2fa(data));
+    }
 }
