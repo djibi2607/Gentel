@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 @Slf4j
@@ -34,5 +35,9 @@ public class JwtUtil {
             log.error("Jwt parsing failed {}", ex.getMessage(), ex);
             return false;
         }
+    }
+
+    public String createRefresh(){
+        return UUID.randomUUID().toString();
     }
 }

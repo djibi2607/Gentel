@@ -39,4 +39,13 @@ public class UserDTO {
         private String emailCode;
         private String smsCode;
     }
+
+    @Getter
+    @Setter
+    public static class Login {
+        private String email;
+        private String phone;
+        @NotBlank
+        private String password;
+    }
 }

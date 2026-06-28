@@ -1,5 +1,6 @@
 package com.abdoul.hotel.Services;
 
+import com.abdoul.hotel.Config.KycStatus;
 import com.abdoul.hotel.Config.KycType;
 import com.abdoul.hotel.DTO.UserDTO;
 import com.abdoul.hotel.Entities.KycModel;
@@ -7,6 +8,7 @@ import com.abdoul.hotel.Entities.UserModel;
 import com.abdoul.hotel.Entities.WalletModel;
 import com.abdoul.hotel.Exceptions.BadRequestException;
 import com.abdoul.hotel.Exceptions.ConflictException;
+import com.abdoul.hotel.Exceptions.ForbiddenException;
 import com.abdoul.hotel.Exceptions.NotFoundException;
 import com.abdoul.hotel.Repositories.KycRepository;
 import com.abdoul.hotel.Repositories.UserRepository;
@@ -16,7 +18,10 @@ import org.springframework.security.crypto.password4j.Argon2Password4jPasswordEn
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -195,4 +200,76 @@ public class UserService {
         return response;
     }
 
+
+    @Transactional
+    public Map<String, String> logIn (UserDTO.Login data){
+        if (data.getEmail() == null && data.getPhone() == null){
+            throw new BadRequestException("You must provide an email or phone number");
+        }
+
+        Map<String, String> response = new LinkedHashMap<>();
+
+        UserModel user = userRepository.findByEmailOrPhone(data.getEmail(), data.getPhone());
+
+        if (user == null) {
+            throw new NotFoundException("Account not found");
+        }
+
+        if (user.isDeleted()){
+            throw new NotFoundException("Account not found");
+        }
+
+        if (!user.isPhoneVerified() || !user.isEmailVerified()){
+            throw new BadRequestException("You must verify your information first");
+        }
+
+        if (!encoder.matches(data.getPassword(), user.getPassword())){
+            throw new BadRequestException("Incorrect password");
+        }
+
+        KycModel idKyc = kycRepository.findByUserAndKycType(user, KycType.ID);
+
+        KycModel selfieKyc = kycRepository.findByUserAndKycType(user, KycType.SELFIE);
+
+        boolean idInValid = user.getCreatedAt().plusDays(14).isBefore(ZonedDateTime.now(ZoneId.of("UTC"))) && !idKyc.getKycStatus().equals(KycStatus.Approved);
+
+        boolean selfieInValid = user.getCreatedAt().plusDays(14).isBefore(ZonedDateTime.now(ZoneId.of("UTC"))) && !selfieKyc.getKycStatus().equals(KycStatus.Approved);
+
+        if (idInValid || selfieInValid){
+            throw new ForbiddenException("Your account has been deactivated for failure to submit documentation");
+        }
+
+        if (user.isFaEnabled()){
+            String temporaryToken = jwtUtil.generateAccessToken(String.valueOf(user.getId()));
+
+            redisUtil.saveToken("Temporary-Token", temporaryToken, String.valueOf(user.getId()), Duration.ofMinutes(15));
+
+            String code = twoFactorUtil.createCode();
+
+            redisUtil.saveCode(code, String.valueOf(user.getId()), "Login-Two-Factor-Code");
+
+            resend.sendWelcomeEmailWithEmailVerification(user.getName(), code);
+
+            twilioUtil.sendWelcomeSmsWithPhoneVerification(user.getPhone(), user.getName(), code);
+
+            response.put("notice", "A verification code has been sent to your email and phone number");
+
+            response.put("temporary-token", temporaryToken);
+
+            return response;
+        }
+
+        String accessToken = jwtUtil.generateAccessToken(String.valueOf(user.getId()));
+
+        String refresh = jwtUtil.createRefresh();
+
+        redisUtil.saveToken("Refresh-Token", refresh, String.valueOf(user.getId()), Duration.ofHours(2));
+
+        response.put("notice", "Login successful");
+        response.put("access token", accessToken);
+        response.put("refresh token", refresh);
+        response.put("token type", "Bearer ");
+
+        return response;
+    }
 }

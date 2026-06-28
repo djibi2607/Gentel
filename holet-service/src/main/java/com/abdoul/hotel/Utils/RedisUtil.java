@@ -19,4 +19,12 @@ public class RedisUtil {
     public String getCode (String userId, String prefix){
         return redisTemplate.opsForValue().get(prefix + userId);
     }
+
+    public void saveToken (String prefix, String token, String userId, Duration duration){
+        redisTemplate.opsForValue().set(prefix + token, userId, duration);
+    }
+
+    public String getIdFromToken (String prefix, String token){
+        return redisTemplate.opsForValue().get(prefix + token);
+    }
 }
